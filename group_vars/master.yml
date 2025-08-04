@@ -1,0 +1,6 @@
+new_hostname: raspberry-daniel
+user_name: daniel
+packages_to_install:
+  - htop
+  - curl
+  - vim

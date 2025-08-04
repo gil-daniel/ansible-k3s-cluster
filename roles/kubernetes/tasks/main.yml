@@ -1,0 +1,12 @@
+# roles/kubernetes/tasks/main.yml
+- import_tasks: master.yml
+  when: inventory_hostname == master_node
+  tags: [k3s, master]
+
+- import_tasks: worker.yml
+  when: inventory_hostname in worker_nodes
+  tags: [k3s, workers]
+
+- import_tasks: workloads.yml
+  when: inventory_hostname == master_node
+  tags: [workloads, deployments, services]

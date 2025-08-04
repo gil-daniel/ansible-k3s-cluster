@@ -1,0 +1,9 @@
+# roles/kubernetes/tasks/master.yml
+- name: Install K3s on master node
+  shell: |
+    curl -sfL https://get.k3s.io | \
+    K3S_TOKEN={{ k3s_token }} \
+    INSTALL_K3S_VERSION={{ k3s_version }} \
+    sh -
+  when: inventory_hostname == master_node
+  tags: [k3s, master]

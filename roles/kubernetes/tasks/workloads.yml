@@ -1,0 +1,60 @@
+# Deploy Kubernetes workloads defined in group_vars/kubernetes.yml
+
+- name: Debug pod definitions
+  debug:
+    msg: "Pod '{{ item.name }}' - Replicas: {{ item.replicas | int }} - Image: {{ item.image }}"
+  loop: "{{ kubernetes_pods }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: inventory_hostname == master_node
+  tags: [deployments]
+
+- name: Render Deployment YAML locally
+  delegate_to: localhost
+  become: false
+  run_once: true
+  template:
+    src: deployment.yml.j2
+    dest: "/tmp/{{ item.name }}-deployment.yml"
+  loop: "{{ kubernetes_pods }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [deployments]
+
+- name: Apply Deployment from local YAML
+  delegate_to: localhost
+  become: false
+  run_once: true
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    state: present
+    src: "/tmp/{{ item.name }}-deployment.yml"
+  loop: "{{ kubernetes_pods }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [deployments]
+
+- name: Render Service YAML locally
+  delegate_to: localhost
+  become: false
+  run_once: true
+  template:
+    src: service.yml.j2
+    dest: "/tmp/{{ item.name }}-service.yml"
+  loop: "{{ kubernetes_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [services]
+
+- name: Apply Service from local YAML
+  delegate_to: localhost
+  become: false
+  run_once: true
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    state: present
+    src: "/tmp/{{ item.name }}-service.yml"
+  loop: "{{ kubernetes_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [services]

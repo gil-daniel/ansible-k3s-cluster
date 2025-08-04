@@ -1,0 +1,19 @@
+- name: Setup K3s Cluster (Master + Worker)
+  hosts: all
+  become: true
+
+  vars_files:
+    - group_vars/kubernetes.yml
+
+  pre_tasks:
+    - name: Show architecture (only for workers)
+      debug:
+        var: ansible_architecture
+      when: inventory_hostname in groups['worker']
+
+  roles:
+    - role: common
+      tags: [common]
+
+    - role: kubernetes
+      tags: [k3s, workloads, deployments, services]

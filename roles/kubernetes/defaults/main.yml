@@ -1,0 +1,7 @@
+# Standard variables for Kubernetes role
+
+kubernetes_namespace: default
+kubernetes_services:
+  - name: web
+    port: 80
+    targetPort: 8080

@@ -1,0 +1,5 @@
+- name: Reboot device
+  reboot:
+    msg: "Rebooting after hostname change"
+    reboot_timeout: 300
+    test_command: whoami

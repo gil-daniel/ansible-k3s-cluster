@@ -1,0 +1,13 @@
+# Ansible
+*.retry
+*.log
+
+# Secrets
+vault.yml
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+*:Zone.Identifier

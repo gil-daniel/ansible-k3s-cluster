@@ -1,0 +1,7 @@
+# Group vars for VM setup
+new_hostname: k3s-worker-1
+user_name: daniel
+packages_to_install:
+  - htop
+  - curl
+  - vim

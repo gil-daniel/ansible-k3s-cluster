@@ -52,17 +52,15 @@ iac-ansible-k3s-rpi-lab/
 
 ## Roadmap
 
-✅ Phase 1: Basic Raspberry Pi Setup
-
+### ✅ Phase 1: Basic Raspberry Pi Setup
 - [x] Update and upgrade system packages
 - [x] Install essential tools (htop, curl, vim)
 - [x] Create a user with sudo privileges
--[x] Set custom hostname and update /etc/hosts
+- [x] Set custom hostname and update /etc/hosts
 - [x] Refactor playbook into roles and variables
 
 
-✅ Phase 2: Kubernetes Cluster
-
+### ✅ Phase 2: Kubernetes Cluster
 - [x] Install K3s on master and worker nodes
 - [x] Configure cluster join and token exchange
 - [x] Deploy sample workloads and services
@@ -96,12 +94,13 @@ To run specific parts::
 ```bash
 ansible-playbook -i hosts.ini setup.yml --tags workloads
 ```
+
 Available tags:
 
-`k3s` - installs K3s on master and workers
-`workloads` - deploys sample pods and services
-`master` - tasks specific to the master node
-`workers` - tasks specific to worker nodes
+- `k3s` - installs K3s on master and workers
+- `workloads` - deploys sample pods and services
+- `master` - tasks specific to the master node
+- `workers` - tasks specific to worker nodes
 ---
 
 ## Notes

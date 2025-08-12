@@ -17,3 +17,6 @@
 
     - role: kubernetes
       tags: [k3s, workloads, deployments, services]
+
+    - role: monitoring
+      tags: [monitoring]

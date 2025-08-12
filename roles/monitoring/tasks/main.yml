@@ -4,3 +4,6 @@
 
 - name: Setup Prometheus
   import_tasks: prometheus.yml
+
+- name: Setup Alertmanager
+  import_tasks: alertmanager.yml

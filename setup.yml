@@ -4,6 +4,7 @@
 
   vars_files:
     - group_vars/kubernetes.yml
+    - roles/monitoring/vars/vault.yml
 
   pre_tasks:
     - name: Show architecture (only for workers)

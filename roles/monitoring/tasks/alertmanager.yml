@@ -1,0 +1,133 @@
+# Detect architecture
+- name: Set Alertmanager architecture
+  ansible.builtin.set_fact:
+    alertmanager_arch: >-
+      {{ 'linux-arm64' if ansible_architecture in ['aarch64', 'arm64'] else
+         'linux-amd64' if ansible_architecture == 'x86_64' else '' }}
+
+# Build release URL after architecture is set
+- name: Set Alertmanager download URL
+  ansible.builtin.set_fact:
+    alertmanager_url: >-
+      https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.{{ alertmanager_arch }}.tar.gz
+
+# Download the tarball for the detected architecture
+- name: Download Alertmanager {{ alertmanager_version }}
+  ansible.builtin.get_url:
+    url: "{{ alertmanager_url }}"
+    dest: "/tmp/alertmanager.tar.gz"
+    mode: "0644"
+
+# Extract tarball into /tmp
+- name: Extract Alertmanager
+  ansible.builtin.unarchive:
+    src: "/tmp/alertmanager.tar.gz"
+    dest: "/tmp"
+    remote_src: true
+
+# Install alertmanager and amtool binaries
+- name: Install Alertmanager and amtool
+  ansible.builtin.copy:
+    src: "/tmp/alertmanager-{{ alertmanager_version }}.{{ alertmanager_arch }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+  loop:
+    - alertmanager
+    - amtool
+
+# Remove extracted files and tarball to free disk space
+- name: Clean up temporary Alertmanager files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/alertmanager.tar.gz"
+    - "/tmp/alertmanager-{{ alertmanager_version }}.{{ alertmanager_arch }}"
+
+# Ensure Alertmanager system group exists
+- name: Ensure Alertmanager system group exists
+  ansible.builtin.group:
+    name: "{{ alertmanager_group | default('alertmanager') }}"
+    system: true
+
+# Ensure Alertmanager system user exists
+- name: Ensure Alertmanager system user exists
+  ansible.builtin.user:
+    name: "{{ alertmanager_user | default('alertmanager') }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    group: "{{ alertmanager_group | default('alertmanager') }}"
+
+# Ensure configuration directory exists with correct permissions
+- name: Ensure Alertmanager config directory
+  ansible.builtin.file:
+    path: "{{ alertmanager_config_dir }}"
+    state: directory
+    owner: "{{ alertmanager_user }}"
+    group: "{{ alertmanager_group }}"
+    mode: "0750"
+
+# Ensure data directory exists with correct permissions
+- name: Ensure Alertmanager data directory
+  ansible.builtin.file:
+    path: "{{ alertmanager_data_dir | default('/var/lib/alertmanager') }}"
+    state: directory
+    owner: "{{ alertmanager_user }}"
+    group: "{{ alertmanager_group }}"
+    mode: "0750"
+
+# Check if amtool exists for configuration validation
+- name: Check if amtool exists on target
+  ansible.builtin.stat:
+    path: "{{ amtool_path }}"
+  register: amtool_stat
+
+# Deploy configuration file from template with optional validation
+- name: Deploy alertmanager.yml from template (with optional validation)
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ alertmanager_config_file }}"
+    owner: "{{ alertmanager_user }}"
+    group: "{{ alertmanager_group }}"
+    mode: "0640"
+    backup: true
+    validate: "{{ amtool_stat.stat.exists | ternary(amtool_path ~ ' check-config %s', omit) }}"
+  notify: Reload Alertmanager
+  no_log: false
+
+# Create systemd service for Alertmanager
+- name: Create systemd service for Alertmanager
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/alertmanager.service
+    content: |
+      [Unit]
+      Description=Alertmanager
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      User={{ alertmanager_user }}
+      Group={{ alertmanager_group }}
+      Type=simple
+      ExecStart={{ alertmanager_bin_path }} \
+        --config.file={{ alertmanager_config_file }} \
+        --storage.path={{ alertmanager_data_dir | default('/var/lib/alertmanager') }}
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: "0644"
+
+# Enable and start Alertmanager service
+- name: Enable and start Alertmanager
+  ansible.builtin.systemd:
+    name: alertmanager
+    enabled: true
+    state: started

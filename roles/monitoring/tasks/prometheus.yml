@@ -73,6 +73,24 @@
     state: absent
   when: not prometheus_binary.stat.exists
 
+# Ensure the rules directory exists
+- name: Ensure /etc/prometheus/rules exists
+  ansible.builtin.file:
+    path: /etc/prometheus/rules
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+
+# Deploy a commented test rule (disabled by default)
+- name: Deploy commented test alert rule
+  ansible.builtin.template:
+    src: rules/teste.yml.j2
+    dest: /etc/prometheus/rules/teste.yml
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+
 # Create the Prometheus configuration file
 - name: Create Prometheus configuration file
   ansible.builtin.template:

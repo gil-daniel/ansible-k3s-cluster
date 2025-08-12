@@ -1,7 +1,20 @@
+# Global evaluation and scraping intervals
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Alertmanager integration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "{{ alertmanager_host }}:{{ alertmanager_port }}"
+
+# Rule files to be loaded by Prometheus
+rule_files:
+  - "{{ prometheus_rule_path }}"
+
+# Scrape configuration
 scrape_configs:
   - job_name: 'node_exporter'
     static_configs:

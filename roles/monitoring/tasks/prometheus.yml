@@ -1,0 +1,110 @@
+# Checks if Prometheus is already installed.
+- name: Check if Prometheus is already installed
+  ansible.builtin.stat:
+    path: "/opt/prometheus-3.5.0.linux-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}/prometheus"
+  register: prometheus_binary
+
+# Create Prometheus user and group if they do not exist
+- name: Create Prometheus system user
+  ansible.builtin.user:
+    name: prometheus
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+
+# Ensure required directories exist
+- name: Ensure /etc/prometheus exists
+  ansible.builtin.file:
+    path: /etc/prometheus
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+
+- name: Ensure /var/lib/prometheus exists
+  ansible.builtin.file:
+    path: /var/lib/prometheus
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+
+# Download and install Prometheus on ARM64 and AMD64 architectures
+- name: Download Prometheus archive (ARM64)
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-arm64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: '0644'
+  when:
+    - ansible_architecture == "aarch64"
+    - not prometheus_binary.stat.exists
+
+- name: Download Prometheus archive (AMD64)
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: '0644'
+  when:
+    - ansible_architecture == "x86_64"
+    - not prometheus_binary.stat.exists
+
+# Extract Prometheus archive if it does not already exist
+- name: Extract Prometheus
+  ansible.builtin.unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /opt/
+    remote_src: yes
+  when: not prometheus_binary.stat.exists
+
+# Fix permissions of extracted Prometheus folder
+- name: Fix ownership of extracted Prometheus
+  ansible.builtin.file:
+    path: "/opt/prometheus-3.5.0.linux-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    recurse: yes
+  when: not prometheus_binary.stat.exists
+
+# Clean up the Prometheus archive after extraction
+- name: Remove Prometheus archive
+  ansible.builtin.file:
+    path: /tmp/prometheus.tar.gz
+    state: absent
+  when: not prometheus_binary.stat.exists
+
+# Create the Prometheus configuration file
+- name: Create Prometheus configuration file
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+  notify: Restart Prometheus
+
+# Create systemd unit file for Prometheus
+- name: Create systemd unit file for Prometheus
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus.service
+    content: |
+      [Unit]
+      Description=Prometheus Monitoring
+      After=network.target
+
+      [Service]
+      User=prometheus
+      ExecStart=/opt/prometheus-3.5.0.linux-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}/prometheus \
+        --config.file=/etc/prometheus/prometheus.yml \
+        --storage.tsdb.path=/var/lib/prometheus
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+
+# Enable Prometheus service on boot
+- name: Enable Prometheus service
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: true

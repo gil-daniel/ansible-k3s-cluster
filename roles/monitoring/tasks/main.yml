@@ -3,7 +3,9 @@
   import_tasks: node_exporter.yml
 
 - name: Setup Prometheus
+  when: inventory_hostname in groups['monitoring']
   import_tasks: prometheus.yml
 
 - name: Setup Alertmanager
+  when: inventory_hostname in groups['monitoring']
   import_tasks: alertmanager.yml

@@ -9,3 +9,7 @@
 - name: Setup Alertmanager
   when: inventory_hostname in groups['monitoring']
   import_tasks: alertmanager.yml
+
+- name: Setup Grafana
+  when: inventory_hostname in groups['monitoring']
+  import_tasks: grafana.yml

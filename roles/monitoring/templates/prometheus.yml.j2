@@ -19,6 +19,48 @@ scrape_configs:
   - job_name: 'node_exporter'
     static_configs:
       - targets:
-        {% for host in groups['master'] + groups['worker'] %}
-          - '{{ hostvars[host]["ansible_host"] | default(host) }}:9100'
-        {% endfor %}
+{% for host in groups['master'] + groups['worker'] %}
+        - '{{ hostvars[host]["ansible_host"] | default(host) }}:9100'
+{% endfor %}
+
+  - job_name: 'kube-state-metrics'
+    static_configs:
+      - targets:
+{% for host in groups['master'] %}
+        - '{{ hostvars[host]["ansible_host"] | default(host) }}:31180'
+{% endfor %}
+
+{% for host in groups['master'] + groups['worker'] %}
+  - job_name: 'kubelet-cadvisor-{{ host }}'
+    scheme: http
+    metrics_path: /api/v1/nodes/{{ hostvars[host]["inventory_hostname"] | default(host) }}/proxy/metrics/cadvisor
+    static_configs:
+      - targets:
+          - '127.0.0.1:8001'
+    metric_relabel_configs:
+      - action: replace
+        source_labels: ["namespace"]
+        regex: "(.*)"
+        replacement: "$1"
+        target_label: "namespace"
+
+      - action: replace
+        source_labels: ["pod"]
+        regex: "(.*)"
+        replacement: "$1"
+        target_label: "pod"
+
+      - action: replace
+        source_labels: ["container"]
+        regex: "(.*)"
+        replacement: "$1"
+        target_label: "container"
+
+      - action: drop
+        source_labels: ["container"]
+        regex: "^$"
+
+      - action: drop
+        source_labels: ["container"]
+        regex: "^POD$"
+{% endfor %}

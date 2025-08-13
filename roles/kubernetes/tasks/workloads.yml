@@ -58,3 +58,21 @@
   loop_control:
     label: "{{ item.name }}"
   tags: [services]
+
+
+  # --- metrics for kubernetes dashboards on Grafana ---
+- name: Ensure K3s manifests directory exists (server node)
+  when: inventory_hostname in groups['master']
+  ansible.builtin.file:
+    path: /var/lib/rancher/k3s/server/manifests
+    state: directory
+    mode: '0755'
+  tags: [metrics]
+
+- name: Deploy kube-state-metrics manifest
+  when: inventory_hostname in groups['master']
+  ansible.builtin.copy:
+    src: kube-state-metrics.yaml
+    dest: /var/lib/rancher/k3s/server/manifests/kube-state-metrics.yaml
+    mode: '0644'
+  tags: [metrics]

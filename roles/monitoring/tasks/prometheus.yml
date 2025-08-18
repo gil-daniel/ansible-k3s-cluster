@@ -91,6 +91,65 @@
     group: prometheus
     mode: '0644'
 
+# RBAC and Token for secure scraping via API server
+- name: Render RBAC manifest for Prometheus scraping
+  ansible.builtin.template:
+    src: k8s-prometheus-scrape-rbac.yml.j2
+    dest: /tmp/k8s-prometheus-scrape-rbac.yml
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Apply RBAC manifest
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig {{ kubeconfig_path }} apply -f /tmp/k8s-prometheus-scrape-rbac.yml
+  delegate_to: localhost
+  run_once: true
+  become: false
+  changed_when: false
+
+- name: Create token for Prometheus ServiceAccount
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig {{ kubeconfig_path }} -n {{ k8s_scrape_namespace }} create token {{ k8s_scrape_serviceaccount }} --duration={{ k8s_scrape_token_duration }}
+  register: k8s_sa_token_cmd
+  delegate_to: localhost
+  run_once: true
+  become: false
+  changed_when: false
+
+- name: Fail if token generation returned empty
+  ansible.builtin.fail:
+    msg: "Falha ao gerar token do ServiceAccount {{ k8s_scrape_serviceaccount }}. Verifique permissões e versão do Kubernetes."
+  when: k8s_sa_token_cmd.stdout | trim == ""
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Read cluster CA from kubeconfig
+  vars:
+    kubeconfig_data: "{{ lookup('file', kubeconfig_path) | from_yaml }}"
+  ansible.builtin.set_fact:
+    k8s_ca_pem: "{{ kubeconfig_data.clusters[0].cluster['certificate-authority-data'] | b64decode }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Write kube API CA to Prometheus host
+  ansible.builtin.copy:
+    content: "{{ k8s_ca_pem }}"
+    dest: /etc/prometheus/k8s-ca.crt
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+
+- name: Write kube API token to Prometheus host
+  ansible.builtin.copy:
+    content: "{{ k8s_sa_token_cmd.stdout | trim }}"
+    dest: /var/lib/prometheus/k8s-token
+    owner: prometheus
+    group: prometheus
+    mode: '0600'
+
 # Create the Prometheus configuration file
 - name: Create Prometheus configuration file
   ansible.builtin.template:

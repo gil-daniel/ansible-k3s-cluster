@@ -32,35 +32,21 @@ scrape_configs:
 
 {% for host in groups['master'] + groups['worker'] %}
   - job_name: 'cadvisor-{{ host }}'
-    scheme: http
-    metrics_path: /metrics
+    scheme: https
+    metrics_path: /api/v1/nodes/{{ hostvars[host]['k8s_node_name'] | default(host) }}/proxy/metrics/cadvisor
     static_configs:
       - targets:
-          - '{{ hostvars[host]["ansible_host"] | default(host) }}:8080'
+          - '{{ apiserver_host }}:{{ apiserver_port }}'
+    tls_config:
+      ca_file: /etc/prometheus/k8s-ca.crt
+    bearer_token_file: /var/lib/prometheus/k8s-token
+
     metric_relabel_configs:
-      - action: replace
-        source_labels: ["namespace"]
-        regex: "(.*)"
-        replacement: "$1"
-        target_label: "namespace"
-
-      - action: replace
-        source_labels: ["pod"]
-        regex: "(.*)"
-        replacement: "$1"
-        target_label: "pod"
-
-      - action: replace
-        source_labels: ["container"]
-        regex: "(.*)"
-        replacement: "$1"
-        target_label: "container"
-
       - action: drop
         source_labels: ["container"]
         regex: "^$"
-
       - action: drop
         source_labels: ["container"]
         regex: "^POD$"
 {% endfor %}
+

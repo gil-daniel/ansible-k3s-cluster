@@ -30,16 +30,17 @@ scrape_configs:
         - '{{ hostvars[host]["ansible_host"] | default(host) }}:31180'
 {% endfor %}
 
-{% for host in groups['master'] + groups['worker'] %}
-  - job_name: 'cadvisor-{{ host }}'
+  # New job: scrape directly from the nodes' kubelet using a fixed token
+  - job_name: 'kubelet-cadvisor'
     scheme: https
-    metrics_path: /api/v1/nodes/{{ hostvars[host]['k8s_node_name'] | default(host) }}/proxy/metrics/cadvisor
+    bearer_token_file: /etc/prometheus/kubelet.token
+    tls_config:
+      insecure_skip_verify: true
+    metrics_path: /metrics/cadvisor
     static_configs:
       - targets:
-          - '{{ apiserver_host }}:{{ apiserver_port }}'
-    tls_config:
-      ca_file: /etc/prometheus/k8s-ca.crt
-    bearer_token_file: /var/lib/prometheus/k8s-token
+          - 192.168.68.105:10250   # kubelet master (raspberry-daniel)
+          - 192.168.68.115:10250   # kubelet worker (k3s-worker-1)
 
     metric_relabel_configs:
       - action: drop
@@ -48,5 +49,3 @@ scrape_configs:
       - action: drop
         source_labels: ["container"]
         regex: "^POD$"
-{% endfor %}
-

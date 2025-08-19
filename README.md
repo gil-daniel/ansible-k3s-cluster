@@ -16,37 +16,89 @@ The lab automates the setup of a multi-node K3s cluster using Ansible. It includ
 - System configuration and hostname setup
 - K3s installation and cluster bootstrapping
 - Workload deployment using templated manifests
+- Complete monitoring and observability stack (Prometheus, Node Exporter, Alertmanager, Grafana)
 - Role-based structure for easy expansion
 
 > The cluster consists of a **Raspberry Pi 4 (ARM64)** as the master node and a **virtual machine (x86_64)** as the worker node, demonstrating a mixed-architecture setup supported by K3s.
 
+---
+## Prerequisites
+- Ansible >= 2.16 (check with `ansible --version`)
+- SSH access configured for all nodes in `hosts.ini`
+- Python 3.x installed on controller host
 ---
 
 ## Directory Structure
 
 ```plaintext
 iac-ansible-k3s-rpi-lab/
-├── ansible.cfg              # Ansible configuration file
-├── hosts.ini                # Inventory file with master and worker nodes
-├── setup.yml                # Main playbook that orchestrates the roles
-├── group_vars/              # Group-specific variables
+├── LICENSE
+├── README.md
+├── ansible.cfg
+├── ca.crt
+├── group_vars/              # Group-specific variables (all, master, worker, kubernetes)
 │   ├── all.yml
+│   ├── kubernetes.yml
 │   ├── master.yml
-│   ├── worker.yml
-│   └── kubernetes.yml
+│   └── worker.yml
+├── hosts.ini                # Ansible inventory file
 ├── roles/
-│   ├── common/              # System setup (packages, hostname, user)
-│   └── kubernetes/          # K3s installation and workload deployment
-│       ├── tasks/
+│   ├── common/              # Base system setup (packages, hostname, user, etc.)
+│   │   ├── README.md
+│   │   ├── handlers/        # Ansible handlers for common role
+│   │   │   └── main.yml
+│   │   └── tasks/           # Ansible tasks for common role
+│   │       └── main.yml
+│   ├── kubernetes/          # K3s cluster installation and configuration
+│   │   ├── README.md
+│   │   ├── defaults/        # Default variables for Kubernetes role
+│   │   │   └── main.yml
+│   │   ├── files/           # Static files (e.g. kube-state-metrics manifest)
+│   │   │   └── kube-state-metrics.yaml
+│   │   ├── images/          # Reference screenshots
+│   │   │   ├── kubectl-get-nodes.png
+│   │   │   ├── kubectl-get-pods.png
+│   │   │   └── kubectl-get-services.png
+│   │   ├── tasks/           # Playbook tasks for Kubernetes role
+│   │   │   ├── main.yml
+│   │   │   ├── master.yml
+│   │   │   ├── worker.yml
+│   │   │   └── workloads.yml
+│   │   └── templates/       # Jinja2 templates for Kubernetes manifests
+│   │       ├── deployment.yml.j2
+│   │       └── service.yml.j2
+│   └── monitoring/          # Monitoring and observability stack
+│       ├── README.md
+│       ├── defaults/        # Default variables for monitoring role
+│       │   └── main.yml
+│       ├── files/           # Static files for monitoring
+│       │   └── dashboards/  # Grafana dashboards in JSON format
+│       │       ├── k8s-cluster-monitoring.json
+│       │       └── node-exporter-full.json
+│       ├── handlers/        # Handlers for monitoring role
+│       │   └── main.yml
+│       ├── images/          # Monitoring screenshots
+│       │   ├── alertmanager.png
+│       │   ├── grafana-k8s-cluster.png
+│       │   ├── node-exporter.png
+│       │   └── prometheus-targets.png
+│       ├── tasks/           # Playbook tasks for monitoring role
+│       │   ├── alertmanager.yml
+│       │   ├── grafana.yml
 │       │   ├── main.yml
-│       │   ├── master.yml
-│       │   ├── worker.yml
-│       │   └── workloads.yml
-│       ├── templates/
-│       │   ├── deployment.yml.j2
-│       │   └── service.yml.j2
-│       ├── defaults/
-│       └── vars/
+│       │   ├── node_exporter.yml
+│       │   └── prometheus.yml
+│       ├── templates/       # Jinja2 templates for monitoring configs
+│       │   ├── alertmanager.yml.j2
+│       │   ├── grafana-datasource.yml.j2
+│       │   ├── k8s-prometheus-scrape-rbac.yml.j2
+│       │   ├── prometheus.yml.j2
+│       │   └── rules/       # Prometheus rule files (templates)
+│       │       └── teste.yml.j2
+│       └── vars/            # Variable files for monitoring role
+│           ├── main.yml
+│           └── vault.yml
+└── setup.yml                # Main playbook entrypoint
 ```
 ---
 
@@ -65,10 +117,10 @@ iac-ansible-k3s-rpi-lab/
 - [x] Configure cluster join and token exchange
 - [x] Deploy sample workloads and services
 
-### 🔜 Phase 3: Monitoring & Observability
-- [ ] Install Prometheus and Node Exporter
-- [ ] Install Grafana with custom dashboards
-- [ ] Configure alerting with Alertmanager
+### ✅ Phase 3: Monitoring & Observability
+- [x] Install Prometheus and Node Exporter
+- [x] Install Grafana with custom dashboards
+- [x] Configure alerting with Alertmanager
 
 ### 🔜 Phase 4: Application Deployment
 - [ ] Deploy custom apps (Flask, PostgreSQL, MQTT, etc.)
@@ -110,6 +162,8 @@ Available tags:
 * Ensure container images used in workloads are **multi-arch compatible** (e.g. nginx, busybox, etc.)
 * SSH keys and Python interpreters must be correctly set in hosts.ini.
 * The K3s token is defined in group_vars/kubernetes.yml — consider externalizing it for security.
+> ℹ️ **Tip:** Each role/module has its own README.md with specific instructions and variables.
+
 ---
 ## Author
 

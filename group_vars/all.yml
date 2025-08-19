@@ -1,3 +1,12 @@
 # kubeconfig settings
 # Path to the kubeconfig file
 kubeconfig_path: /home/daniel/.kube/config
+
+# API server configuration for scraping via proxy
+apiserver_host: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}"
+apiserver_port: 6443
+
+# ServiceAccount dedicado ao Prometheus para scraping do kubelet/cAdvisor
+k8s_scrape_namespace: kube-system
+k8s_scrape_serviceaccount: prometheus-scrape
+k8s_scrape_token_duration: 720h  # 30 dias

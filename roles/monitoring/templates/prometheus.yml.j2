@@ -1,0 +1,51 @@
+# Global evaluation and scraping intervals
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alertmanager integration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "{{ alertmanager_host }}:{{ alertmanager_port }}"
+
+# Rule files to be loaded by Prometheus
+rule_files:
+  - "{{ prometheus_rule_path }}"
+
+# Scrape configuration
+scrape_configs:
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets:
+{% for host in groups['master'] + groups['worker'] %}
+        - '{{ hostvars[host]["ansible_host"] | default(host) }}:9100'
+{% endfor %}
+
+  - job_name: 'kube-state-metrics'
+    static_configs:
+      - targets:
+{% for host in groups['master'] %}
+        - '{{ hostvars[host]["ansible_host"] | default(host) }}:31180'
+{% endfor %}
+
+  # New job: scrape directly from the nodes' kubelet using a fixed token
+  - job_name: 'kubelet-cadvisor'
+    scheme: https
+    bearer_token_file: /etc/prometheus/kubelet.token
+    tls_config:
+      insecure_skip_verify: true
+    metrics_path: /metrics/cadvisor
+    static_configs:
+      - targets:
+          - 192.168.68.105:10250   # kubelet master (raspberry-daniel)
+          - 192.168.68.115:10250   # kubelet worker (k3s-worker-1)
+
+    metric_relabel_configs:
+      - action: drop
+        source_labels: ["container"]
+        regex: "^$"
+      - action: drop
+        source_labels: ["container"]
+        regex: "^POD$"

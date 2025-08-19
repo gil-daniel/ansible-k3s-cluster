@@ -1,0 +1,14 @@
+# This is a disabled test alert. Uncomment to validate end-to-end integration
+# between Prometheus and Alertmanager. Keep it commented in production.
+
+# groups:
+#   - name: alert-test
+#     rules:
+#       - alert: AlertaDeTeste
+#         expr: vector(1)
+#         for: 1m
+#         labels:
+#           severity: teste
+#         annotations:
+#           summary: "Alerta de teste do Prometheus"
+#           description: "This alert exists only to validate the Prometheus → Alertmanager integration."

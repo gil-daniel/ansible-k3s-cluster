@@ -1,0 +1,90 @@
+---
+# Installs Grafana and configures it with Prometheus as a datasource and sets up dashboards
+
+- name: Ensure /usr/share/keyrings directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+
+# Remove any existing key to avoid conflicts
+- name: Remove existing Grafana GPG key if present
+  ansible.builtin.file:
+    path: /usr/share/keyrings/grafana.gpg
+    state: absent
+
+# Download and convert the Grafana GPG key to binary format (Debian 12+ requirement)
+- name: Download and convert Grafana GPG key (binary format for Debian 12+)
+  ansible.builtin.shell: |
+    curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor -o /usr/share/keyrings/grafana.gpg
+  args:
+    creates: /usr/share/keyrings/grafana.gpg
+
+- name: Add Grafana APT repository (with signed-by for Debian 12+)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=arm64 signed-by=/usr/share/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+    state: present
+    filename: grafana
+    update_cache: yes
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+
+- name: Ensure provisioning directories exist
+  ansible.builtin.file:
+    path: "/etc/grafana/provisioning/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - dashboards
+    - datasources
+
+- name: Deploy Prometheus datasource config
+  ansible.builtin.template:
+    src: grafana-datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    mode: '0644'
+
+# Copy Grafana dashboards from the files/dashboards directory
+- name: Copy Grafana dashboards
+  ansible.builtin.copy:
+    src: "dashboards/"
+    dest: "/var/lib/grafana/dashboards/"
+    mode: '0644'
+
+- name: Deploy dashboard provisioning config
+  ansible.builtin.copy:
+    dest: /etc/grafana/provisioning/dashboards/dashboards.yml
+    content: |
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards
+
+# Clean temporary packages and cache
+- name: Remove Grafana apt lists and cache
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/cache/apt/archives/grafana_*.deb
+    - /tmp/grafana*
+  ignore_errors: yes
+  changed_when: false
+
+# Enable and start Grafana-server service
+- name: Enable and start Grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: started
+    enabled: yes

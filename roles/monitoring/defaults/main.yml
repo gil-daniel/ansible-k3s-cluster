@@ -1,0 +1,12 @@
+# Alertmanager configuration
+alertmanager_config_dir: /etc/alertmanager
+alertmanager_config_file: "{{ alertmanager_config_dir }}/alertmanager.yml"
+alertmanager_user: alertmanager
+alertmanager_group: alertmanager
+alertmanager_service_name: alertmanager
+alertmanager_version: "0.28.1"
+alertmanager_bin_path: "/usr/local/bin/alertmanager"
+
+# amtool configuration
+# If amtool is installed, validation will run automatically; otherwise it's skipped.
+amtool_path: "/usr/local/bin/amtool"

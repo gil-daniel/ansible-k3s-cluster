@@ -1,0 +1,6 @@
+# Alertmanager connection parameters
+alertmanager_host: "localhost"    # Hostname or IP where Alertmanager is running
+alertmanager_port: 9093           # Alertmanager port
+
+# Rule files path pattern for Prometheus
+prometheus_rule_path: "/etc/prometheus/rules/*.yml"

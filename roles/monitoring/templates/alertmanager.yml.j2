@@ -1,0 +1,29 @@
+# Template: alertmanager.yml.j2
+# Email sender and receiver are the same (self-alerting system)
+
+# Main routing configuration
+route:
+  receiver: 'email-self'  # Default receiver for all alerts
+  group_wait: 10s         # Wait before grouping alerts
+  group_interval: 5m      # Time between sending grouped alerts
+  repeat_interval: 3h     # Interval to resend unresolved alerts
+
+global:
+  # SMTP server configuration
+  smtp_smarthost: '{{ smtp_smarthost }}'
+
+  # Sender email address (also the receiver)
+  smtp_from: '{{ smtp_auth_username }}'
+
+  # SMTP authentication credentials
+  smtp_auth_username: '{{ smtp_auth_username }}'
+  smtp_auth_password: '{{ smtp_auth_password }}'
+
+  # Enforce TLS encryption
+  smtp_require_tls: {{ smtp_require_tls | bool }}
+
+receivers:
+  - name: 'email-self'
+    email_configs:
+      - to: '{{ smtp_auth_username }}'
+        send_resolved: true

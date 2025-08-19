@@ -1,0 +1,19 @@
+# Restart Prometheus service after configuration changes
+- name: Restart Prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    state: restarted
+
+# Try a graceful Alertmanager reload first; if not supported, fallback to restart.
+- name: Reload Alertmanager
+  ansible.builtin.systemd:
+    name: "{{ alertmanager_service_name }}"
+    state: reloaded
+  failed_when: false
+  notify: Restart Alertmanager
+
+- name: Restart Alertmanager
+  ansible.builtin.systemd:
+    name: "{{ alertmanager_service_name }}"
+    state: restarted
+

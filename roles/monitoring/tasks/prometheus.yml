@@ -1,0 +1,202 @@
+# Checks if Prometheus is already installed
+- name: Check if Prometheus is already installed
+  ansible.builtin.stat:
+    path: "/opt/prometheus-3.5.0.linux-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}/prometheus"
+  register: prometheus_binary
+
+# Create Prometheus user/group if not exists
+- name: Create Prometheus system user
+  ansible.builtin.user:
+    name: prometheus
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+
+# Ensure required directories exist
+- name: Ensure Prometheus dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+  loop:
+    - /etc/prometheus
+    - /var/lib/prometheus
+
+# Download Prometheus archive if needed (ARM64)
+- name: Download Prometheus archive (ARM64)
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-arm64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: '0644'
+  when:
+    - ansible_architecture == "aarch64"
+    - not prometheus_binary.stat.exists
+
+# Download Prometheus archive if needed (AMD64)
+- name: Download Prometheus archive (AMD64)
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: '0644'
+  when:
+    - ansible_architecture == "x86_64"
+    - not prometheus_binary.stat.exists
+
+# Extract Prometheus archive
+- name: Extract Prometheus
+  ansible.builtin.unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /opt/
+    remote_src: yes
+  when: not prometheus_binary.stat.exists
+
+# Fix permissions
+- name: Fix ownership
+  ansible.builtin.file:
+    path: "/opt/prometheus-3.5.0.linux-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    recurse: yes
+  when: not prometheus_binary.stat.exists
+
+# Remove archive
+- name: Cleanup archive
+  ansible.builtin.file:
+    path: /tmp/prometheus.tar.gz
+    state: absent
+  when: not prometheus_binary.stat.exists
+
+# Ensure rules directory exists
+- name: Ensure rules dir
+  ansible.builtin.file:
+    path: /etc/prometheus/rules
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+
+# Deploy commented test rule
+- name: Deploy test alert rule
+  ansible.builtin.template:
+    src: rules/teste.yml.j2
+    dest: /etc/prometheus/rules/teste.yml
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+
+# Render RBAC manifest (only if SA does not exist)
+- name: Check if ServiceAccount exists
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig {{ kubeconfig_path }} -n {{ k8s_scrape_namespace }} get sa {{ k8s_scrape_serviceaccount }}
+  register: sa_exists
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Render RBAC manifest
+  ansible.builtin.template:
+    src: k8s-prometheus-scrape-rbac.yml.j2
+    dest: /tmp/k8s-prometheus-scrape-rbac.yml
+  delegate_to: localhost
+  run_once: true
+  become: false
+  when: sa_exists.rc != 0
+
+- name: Apply RBAC manifest
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig {{ kubeconfig_path }} apply -f /tmp/k8s-prometheus-scrape-rbac.yml
+  delegate_to: localhost
+  run_once: true
+  become: false
+  changed_when: false
+  when: sa_exists.rc != 0
+
+# Create token only if missing locally
+- name: Create token for SA if file missing
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig {{ kubeconfig_path }} -n {{ k8s_scrape_namespace }} create token {{ k8s_scrape_serviceaccount }} --duration={{ k8s_scrape_token_duration }}
+  register: k8s_sa_token_cmd
+  args:
+    creates: /var/lib/prometheus/k8s-token
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Fail if token empty
+  ansible.builtin.fail:
+    msg: "Failed to generate token for ServiceAccount {{ k8s_scrape_serviceaccount }}."
+  when:
+    - (k8s_sa_token_cmd is defined) and (k8s_sa_token_cmd.stdout | trim == "")
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+# Read cluster CA from kubeconfig
+- name: Read cluster CA
+  vars:
+    kubeconfig_data: "{{ lookup('file', kubeconfig_path) | from_yaml }}"
+  ansible.builtin.set_fact:
+    k8s_ca_pem: "{{ kubeconfig_data.clusters[0].cluster['certificate-authority-data'] | b64decode }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+# Write CA to Prometheus host
+- name: Write kube API CA
+  ansible.builtin.copy:
+    content: "{{ k8s_ca_pem }}"
+    dest: /etc/prometheus/k8s-ca.crt
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+
+# Write token to Prometheus host (only if generated this run)
+- name: Write kube API token
+  ansible.builtin.copy:
+    content: "{{ k8s_sa_token_cmd.stdout | trim }}"
+    dest: /var/lib/prometheus/k8s-token
+    owner: prometheus
+    group: prometheus
+    mode: '0600'
+  when: k8s_sa_token_cmd is defined and k8s_sa_token_cmd.stdout | trim != ""
+
+# Prometheus config
+- name: Create Prometheus config
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+  notify: Restart Prometheus
+
+# Systemd unit
+- name: Create Prometheus service unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus.service
+    content: |
+      [Unit]
+      Description=Prometheus Monitoring
+      After=network.target
+
+      [Service]
+      User=prometheus
+      ExecStart=/opt/prometheus-3.5.0.linux-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}/prometheus \
+        --config.file=/etc/prometheus/prometheus.yml \
+        --storage.tsdb.path=/var/lib/prometheus
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+
+# Enable Prometheus on boot
+- name: Enable Prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: true

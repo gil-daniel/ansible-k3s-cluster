@@ -1,29 +1,29 @@
 # Phase 3 – Monitoring & Observability
 
-## 📌 Overview
+## Overview
 This phase introduces a complete observability stack for the K3s cluster, combining:
 - **Prometheus** – metric collection and storage
 - **Node Exporter** – node-level metrics
 - **Alertmanager** – alert routing and notifications
-- *(Upcoming)* **Grafana** – visualization and dashboards
+- **Grafana** – visualization and dashboards
 
 The goal is to provide real‑time visibility into cluster health, performance, and events, with proactive alerting.
 
 ---
 
-## 🗺️ Architecture
+## Architecture
 
 ```text
 [Node Exporter] --->+
                     |
 [Prometheus] <------+--> [Alertmanager] --> [Notification Channels]
       |
-      +--> (future) [Grafana Dashboards]
+      +--> [Grafana Dashboards]
 ```
 
 ---
 
-## 🛠️ Installation & Configuration
+## Installation & Configuration
 Prerequisites:
 - Ansible ≥ 2.9
 - SSH access to all target nodes
@@ -51,7 +51,7 @@ ansible-playbook setup.yml \
 ```
 ---
 
-## 📂 Role Structure
+## Role Structure
 `roles/monitoring`
 - `vars/main.yml`: central variables (e.g., Alertmanager host/port)
 - `templates/prometheus.yml.j2`: main Prometheus config (alerting + rule_files)
@@ -61,7 +61,7 @@ ansible-playbook setup.yml \
 
 ---
 
-## 🔔 Alerting
+## Alerting
 ### Default Test Rule
 A commented “test alert” file (`teste.yml.j2`)is deployed by default in `/etc/prometheus/rules/`
 Uncomment to perform a smoke test of the Prometheus → Alertmanager pipeline.
@@ -92,31 +92,48 @@ sudo rm /etc/prometheus/rules/always_firing.yml
 
 ---
 
-## 🩺 Validation Steps
+## Validation Steps
 After deployment:
 1. Access Prometheus UI → Status → Targets – all endpoints UP
 2. **Status → Configuration** - Alertmanager listed under `alerting`
 3. Alertmanager UI – alerts received as expected
+4. Grafana – dashboards rendering metrics
 
 ---
 
-## 📊 Grafana Integration (Upcoming)
-- Installing Grafana via Ansible
-- Connecting to Prometheus as a data source
-- Deploying custom dashboards:
-    - Node health (Node Exporter)
-    - Kubernetes cluster overview
-    - Alertmanager activity
-- Import/export of dashboard JSONs
+## Grafana Integration
+- Grafana is now fully implemented via Ansible:
+- Prometheus datasource pre‑configured
+- Automatic import of:
+    - `Node Exporter Full` dashboard
+    - `K8s Cluster Monitoring` dashboard
+- Service enabled and started
+- Accessible at: `http://<grafana_host>:3000` (default admin/admin – change password after first login)
 
 ---
 
-## 🧰 Troubleshooting
+## Troubleshooting
 - **Alert not firing**: Ensure the rule file is loaded (`rule_files` in `prometheus.yml`) and reload Prometheus.
 - **Alertmanager unreachable**: Check network connectivity and matching host/port in `vars/main.yml`.
+- **Grafana dashboard empty**: Verify Prometheus datasource is healthy in Grafana Configuration → Data Sources.
+
+---
+## Screenshots
+### Alert Manager
+- ![Alert Manager](./images/alertmanager.png)
+
+### Prometheus Targets
+- ![Prometheus Targets](./images/prometheus-targets.png)
+
+### Grafana Dashboards
+### Kubernetes Cluster
+- ![Kubernetes Cluster](./images/grafana-k8s-cluster.png)
+
+### Node Exporter
+- ![Node Exporter](./images/node-exporter.png)
 
 ---
 
 ## 📅 Change Log
+- 2025‑08‑19: Grafana fully implemented with pre‑loaded dashboards
 - 2025‑08‑12: Added Prometheus, Alertmanager, and initial alert rules
-- (future): Add Grafana with dashboards

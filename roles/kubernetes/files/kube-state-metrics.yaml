@@ -4,12 +4,15 @@ kind: Namespace
 metadata:
   name: kube-state-metrics
 ---
-# ServiceAccount used by kube-state-metrics
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: kube-state-metrics
-  namespace: kube-state-metrics
+# ServiceAccount used by kube-state-metrics (do not create/modify via Ansible to avoid token overwrite)
+# ==> REMOVE this block if you have already created it manually and want to keep it unmanaged.
+#apiVersion: v1
+#kind: ServiceAccount
+#metadata:
+#  name: kube-state-metrics
+#  namespace: kube-state-metrics
+#  annotations:
+#    managed-by: manual
 ---
 # RBAC: permissions to list/watch cluster objects
 apiVersion: rbac.authorization.k8s.io/v1
@@ -59,7 +62,7 @@ rules:
       - poddisruptionbudgets
     verbs: ["list", "watch"]
 ---
-# RBAC binding: grant the ClusterRole to the ServiceAccount
+# RBAC binding: grant the ClusterRole to the existing ServiceAccount
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -94,14 +97,12 @@ spec:
       serviceAccountName: kube-state-metrics
       containers:
         - name: kube-state-metrics
-          # Version aligned with current v2 series (ARM-friendly)
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0
           ports:
             - name: http-metrics
               containerPort: 8080
             - name: telemetry
               containerPort: 8081
-          # Basic health checks for readiness/liveness
           readinessProbe:
             httpGet:
               path: /healthz
@@ -111,7 +112,7 @@ spec:
               path: /healthz
               port: http-metrics
 ---
-# Service exposed as NodePort to allow external Prometheus scraping
+# Service exposed as NodePort to allow external scraping by Prometheus
 apiVersion: v1
 kind: Service
 metadata:
@@ -125,6 +126,6 @@ spec:
     app.kubernetes.io/name: kube-state-metrics
   ports:
     - name: http-metrics
-      port: 8080        # in-cluster port
-      targetPort: 8080  # container port
-      nodePort: 31180   # external node port (adjust if needed)
+      port: 8080
+      targetPort: 8080
+      nodePort: 31180
